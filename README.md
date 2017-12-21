@@ -26,3 +26,8 @@ API of register a CASP service for CASP client;
 Register service to CASP server;
 start a local http server as service;
 
+# Optional plan
+- Base on WebSocket
+- Base on Tcp protocol
+- Base on gRPC / both side stream
+
