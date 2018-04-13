@@ -11,12 +11,11 @@ import (
 	"time"
 
 	websocket2 "github.com/gorilla/websocket"
-	"golang.org/x/net/websocket"
 )
 
 type ServiceNode struct {
 	ClientIp     string
-	ServiceName  string
+	Cid          string
 	Created      time.Time
 	RequestTimes int
 	Conn         *websocket2.Conn //net.Conn
@@ -33,7 +32,7 @@ var upgrader = websocket2.Upgrader{
 // 初始化参数
 func init() {
 	//dir = path.Dir(os.Args[0])
-	flag.IntVar(&port, "p", 8081, "服务器端口")
+	flag.IntVar(&port, "p", 8081, "ws服务器端口")
 	flag.Parse()
 
 	nodes = make(map[string]*ServiceNode, 0)
@@ -43,12 +42,11 @@ func main() {
 	log.SetFlags(log.LstdFlags)
 
 	// 注册后，复用该连接
-	http.HandleFunc("/casp", ServeRegister2)
+	http.HandleFunc("/ws", ServeRegister2)
 	http.HandleFunc("/", ServerForHome)
 	http.HandleFunc("/s", ForwardingToClient)
-	http.Handle("/echo", websocket.Handler(echoHandler))
 
-	log.Printf("server will start at :%v", port)
+	log.Printf("websocket server will start at :%v", port)
 
 	err := http.ListenAndServe(":"+strconv.Itoa(port), nil)
 	if err != nil {
@@ -56,43 +54,7 @@ func main() {
 	}
 }
 
-func echoHandler(ws *websocket.Conn) {
-	msg := make([]byte, 512)
-	n, err := ws.Read(msg)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("Receive: %s\n", msg[:n])
-
-	for i := 0; i < 2; i++ {
-
-		send_msg := "[" + string(msg[:n]) + "]"
-		m, err := ws.Write([]byte(send_msg))
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("Send: i=%v %s\n", i, msg[:m])
-	}
-}
-
-// 注册
-func ServerForRegister(ws *websocket.Conn) {
-
-	req := ws.Request()
-	q := req.URL.Query()
-	serviceName := q.Get("servicename")
-
-	node := &ServiceNode{
-		ServiceName:  serviceName,
-		ClientIp:     req.RemoteAddr,
-		Created:      time.Now(),
-		RequestTimes: 0,
-		//Conn:         ws,
-	}
-
-	log.Printf("a service registered: %v %v", req.RemoteAddr, serviceName)
-
-	nodes[serviceName] = node
+func OnMessageHandler(msg []byte, msgtype int) {
 
 }
 
@@ -103,35 +65,61 @@ func ServeRegister2(w http.ResponseWriter, req *http.Request) {
 	}
 
 	q := req.URL.Query()
-	serviceName := q.Get("servicename")
+	cid := q.Get("cid")
 
 	node := &ServiceNode{
-		ServiceName:  serviceName,
+		Cid:          cid,
 		ClientIp:     req.RemoteAddr,
 		Created:      time.Now(),
 		RequestTimes: 0,
 		Conn:         conn,
 	}
 
-	log.Printf("a service registered 2: %v %v", req.RemoteAddr, serviceName)
+	log.Printf("a client registered 2: %v %v", req.RemoteAddr, cid)
+	/*
+		conn.SetPingHandler(func(msg string) error {
+			conn.SetReadDeadline(time.Now().Add(1000 * time.Hour))
+			log.Printf("this ping handler.\n")
+			return nil
+		})
+	*/
 
-	nodes[serviceName] = node
+	//conn.SetCloseHandler()
+
+	go func(node *ServiceNode) {
+
+		for {
+
+			// mtype 只可能等于 Text Binary 不可能等于 PingMessage PongMessage
+			mtype, msg, err := node.Conn.ReadMessage()
+			if err != nil {
+				log.Printf("READ ERROR from %v(%s):%v", node.Cid, node.ClientIp, err)
+				node.Conn.Close()
+				delete(nodes, node.ClientIp)
+				return
+			}
+
+			log.Printf("get a message from %v:type=%d msg=%v ", node.ClientIp, mtype, string(msg))
+		}
+
+	}(node)
+
+	nodes[req.RemoteAddr] = node
 }
 
 // 主页请求
 func ServerForHome(w http.ResponseWriter, req *http.Request) {
 
-	html := "<!Doctype html><html><ul>"
+	html := "<!Doctype html><html><ul>\n"
 
 	if len(nodes) <= 0 {
-		html += `<li class="empty">no services from client</li>`
+		html += `<li class="empty">no services from client</li><br>` + "\n"
 	}
 	for _, n := range nodes {
-		nodeUrl := fmt.Sprintf("http://127.0.0.1:%v/s?servicename=%v&path=/", port, n.ServiceName)
-		html += fmt.Sprintf(`<li><a href="%v">%s</a> | %s | %s | %v</li>`, nodeUrl, n.ClientIp, n.ServiceName, n.Created.Format("2017-01-02 13:34:05"), n.RequestTimes)
+		html += fmt.Sprintf(`<li> ip=%s | Cid=%s | created=%s | req times=%v</li><br/>`+"\n", n.ClientIp, n.Cid, n.Created.Format("2017-01-02 13:34:05"), n.RequestTimes)
 	}
 
-	html += "</ul></html>"
+	html += "</ul></html>\n"
 
 	io.WriteString(w, html)
 }
@@ -139,30 +127,37 @@ func ServerForHome(w http.ResponseWriter, req *http.Request) {
 // 转发
 func ForwardingToClient(w http.ResponseWriter, req *http.Request) {
 	q := req.URL.Query()
-	serviceName := q.Get("servicename")
+	cid := q.Get("cid")
 	path := q.Get("path")
 
 	if len(path) == 0 {
 		path = "/"
 	}
 
-	node, ok := nodes[serviceName]
+	node, ok := nodes[cid]
 	if !ok {
-		log.Printf("service name not exist:%v", serviceName)
+		log.Printf("client name not exist:%v", cid)
+		return
 	}
 
 	// 必须使用WriteMessage()回复，不能使用io.Copy()
-	node.Conn.WriteMessage(websocket2.TextMessage, []byte(path))
-
-	mtype, msg, err := node.Conn.ReadMessage()
-
-	w.Header().Add("Content-Type", "text/html; charset=utf-8")
+	err := node.Conn.WriteMessage(websocket2.TextMessage, []byte(path))
 	if err != nil {
-		log.Printf("read from client after send req to client error:%v", err)
-		w.Write([]byte(err.Error()))
-	} else {
-		w.Write(msg)
+		log.Printf("write to client %v(%s) ERROR:%v", node.Cid, node.ClientIp, err)
+		delete(nodes, node.ClientIp)
+		node.Conn.Close()
+		return
 	}
 
-	log.Printf("finish forwarding: servicename=%v path=%v mtype=%d", serviceName, path, mtype)
+	/*
+		w.Header().Add("Content-Type", "text/html; charset=utf-8")
+		if err != nil {
+			log.Printf("read from client after send req to client error:%v", err)
+			w.Write([]byte(err.Error()))
+		} else {
+			w.Write(msg)
+		}
+	*/
+
+	log.Printf("finish forwarding: cid=%v path=%v", cid, path)
 }
