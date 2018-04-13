@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	websocket "github.com/gorilla/websocket"
 	"github.com/uxff/webservice-client-as-service-provider/casp"
@@ -43,6 +44,7 @@ func main() {
 		OnClose: func(Ws *websocket.Conn) {
 			log.Printf("this is main close")
 		},
+		PingInterval: time.Second * 2,
 	}
 
 	// 注册后，复用该连接

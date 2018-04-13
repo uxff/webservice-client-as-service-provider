@@ -61,9 +61,14 @@ func (cs *CaspServer) ServeWebsocket(w http.ResponseWriter, req *http.Request) {
 	if cs.PingInterval > 0 {
 		go func(conn *websocket.Conn) {
 			for {
+				// will leak when conn closed
 				time.Sleep(cs.PingInterval)
-				log.Printf("client write a ping.")
-				conn.WriteMessage(websocket.PingMessage, nil)
+				log.Printf("server write a ping.")
+				err := conn.WriteMessage(websocket.PingMessage, nil)
+				if err != nil {
+					log.Printf("server write ping error:%v", err)
+					break
+				}
 			}
 		}(conn)
 	}
@@ -136,11 +141,11 @@ func (cc *CaspClient) Open() error {
 	//defer ws.Close()
 	conn.SetReadLimit(512)
 	conn.SetReadDeadline(time.Now().Add(1000 * time.Hour))
-	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(1000 * time.Hour))
-		log.Printf("this pong handler.\n")
-		return nil
-	})
+	//conn.SetPongHandler(func(string) error {
+	//	conn.SetReadDeadline(time.Now().Add(1000 * time.Hour))
+	//	log.Printf("this pong handler.\n")
+	//	return nil
+	//})
 	//conn.SetPingHandler(func(string) error { conn.SetReadDeadline(time.Now().Add(1000 * time.Hour)); return nil })
 
 	if cc.OnOpen != nil {
@@ -152,7 +157,11 @@ func (cc *CaspClient) Open() error {
 			for {
 				time.Sleep(cc.PingInterval)
 				log.Printf("client write a ping.")
-				conn.WriteMessage(websocket.PingMessage, nil)
+				err := conn.WriteMessage(websocket.PingMessage, nil)
+				if err != nil {
+					log.Printf("client write ping error:%v", err)
+					break
+				}
 			}
 		}(conn)
 	}
