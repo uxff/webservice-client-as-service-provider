@@ -14,13 +14,16 @@ type WsClientNode struct {
 	Created      time.Time
 	RequestTimes int
 	Conn         *websocket.Conn //net.Conn
+	LastPing     time.Time
 	httpReq      *http.Request
 }
 
 type CaspServer struct {
-	nodes map[string]*WsClientNode
+	inited bool
+	nodes  map[string]*WsClientNode
 	//Ws *websocket.Conn
 	PingInterval time.Duration //sec
+	TimeOut      time.Duration
 	OnOpen       func(Ws *websocket.Conn, req *http.Request)
 	OnMessage    func(Ws *websocket.Conn, msg []byte, mtype int)
 	OnClose      func(Ws *websocket.Conn)
@@ -50,7 +53,10 @@ func (cs *CaspServer) ServeWebsocket(w http.ResponseWriter, req *http.Request) {
 		RequestTimes: 0,
 		Conn:         conn,
 		httpReq:      req,
+		LastPing:     time.Now(),
 	}
+
+	cs.nodes[req.RemoteAddr] = node
 
 	log.Printf("a client registered: %v ", req.RemoteAddr)
 
@@ -103,8 +109,6 @@ func (cs *CaspServer) ServeWebsocket(w http.ResponseWriter, req *http.Request) {
 
 	}(node)
 
-	cs.nodes[req.RemoteAddr] = node
-
 }
 
 func (cs *CaspServer) closeClient(clientIp string) {
@@ -113,12 +117,42 @@ func (cs *CaspServer) closeClient(clientIp string) {
 	defer mutex.Unlock()
 
 	if _, ok := cs.nodes[clientIp]; ok {
+		log.Printf("now closing clientIp:%v", clientIp)
+		cs.nodes[clientIp].Conn.Close()
 		if cs.OnClose != nil {
 			cs.OnClose(cs.nodes[clientIp].Conn)
 		}
-		cs.nodes[clientIp].Conn.Close()
 		delete(cs.nodes, clientIp)
 	}
+}
+
+func (cs *CaspServer) InitOnce() {
+	if cs.inited {
+		return
+	}
+
+	// 维护上线的客户端列表
+	go func() {
+		for {
+			time.Sleep(time.Second * 5)
+			keysToDelete := make([]string, 0)
+
+			for i := range cs.nodes {
+
+				if cs.TimeOut > 0 && time.Now().Sub(cs.nodes[i].LastPing) > cs.TimeOut {
+					log.Printf("a client is timeout, kick off:%s", cs.nodes[i].ClientIp)
+					//cs.closeClient(cs.nodes[i].ClientIp)
+					keysToDelete = append(keysToDelete, i)
+					//i--
+				}
+			}
+			for _, i := range keysToDelete {
+				log.Printf("will close:%v", i)
+				cs.closeClient(i)
+			}
+		}
+	}()
+	cs.inited = true
 }
 
 type CaspClient struct {
@@ -190,10 +224,10 @@ func (cc *CaspClient) Open() error {
 }
 
 func (cc *CaspClient) Close() {
+	cc.Conn.Close()
 	if cc.OnClose != nil {
 		cc.OnClose(cc.Conn)
 	}
-	cc.Conn.Close()
 }
 
 func init() {

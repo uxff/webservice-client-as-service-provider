@@ -12,10 +12,12 @@ import (
 )
 
 var port int
+var pingInterval int
 
 // 初始化参数
 func init() {
 	//dir = path.Dir(os.Args[0])
+	flag.IntVar(&pingInterval, "i", pingInterval, "ping interval, num of seconds")
 	flag.IntVar(&port, "p", 8081, "ws服务器端口")
 	flag.Parse()
 
@@ -26,26 +28,30 @@ func main() {
 
 	log.SetFlags(log.LstdFlags)
 
-	cs := casp.CaspServer{
-		OnOpen: func(Ws *websocket.Conn, req *http.Request) {
-			log.Printf("this is main open")
-			Ws.SetPingHandler(func(str string) error {
-				log.Printf("this is ping, from client ")
-				return nil
-			})
-			Ws.SetPongHandler(func(str string) error {
-				log.Printf("this is pong, server -> client")
-				return nil
-			})
-		},
+	cs := &casp.CaspServer{
 		OnMessage: func(Ws *websocket.Conn, msg []byte, mtype int) {
 			log.Printf("this is main message:%v", string(msg))
 		},
 		OnClose: func(Ws *websocket.Conn) {
 			log.Printf("this is main close")
 		},
-		PingInterval: time.Second * 2,
+		PingInterval: time.Second * time.Duration(pingInterval),
+		TimeOut:      time.Second * 10,
 	}
+
+	cs.OnOpen = func(Ws *websocket.Conn, req *http.Request) {
+		log.Printf("this is main open")
+		Ws.SetPingHandler(func(str string) error {
+			log.Printf("ServerPingHandler: from client %s", str)
+			return nil
+		})
+		Ws.SetPongHandler(func(str string) error {
+			log.Printf("ServerPongHandler: server -> client %s", str)
+			return nil
+		})
+	}
+
+	cs.InitOnce()
 
 	// 注册后，复用该连接
 	http.HandleFunc("/ws", cs.ServeWebsocket)
