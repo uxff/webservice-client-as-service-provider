@@ -18,9 +18,6 @@ var registerCenter = "ws://127.0.0.1:8081/ws"
 var sid string = "19283911"
 var pingInterval int = 3
 
-var wsorigin = "http://127.0.0.1:8081/"
-var wsurl = "ws://127.0.0.1:8081/echo"
-
 // 初始化参数
 func init() {
 	flag.IntVar(&port, "p", 8082, "本地服务器端口")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -14,13 +15,20 @@ import (
 
 var port int
 var pingInterval int
+var cs *casp.CaspServer
+var requestChan chan *casp.HttpMsg
+var responseChan chan *casp.HttpMsg
 
 // 初始化参数
 func init() {
 	//dir = path.Dir(os.Args[0])
 	flag.IntVar(&pingInterval, "i", pingInterval, "ping interval, num of seconds")
 	flag.IntVar(&port, "p", 8081, "ws服务器端口")
+
 	flag.Parse()
+
+	requestChan = make(chan *casp.HttpMsg, 10)
+	responseChan = make(chan *casp.HttpMsg, 10)
 
 	//nodes = make(map[string]*ServiceNode, 0)
 }
@@ -29,9 +37,15 @@ func main() {
 
 	log.SetFlags(log.LstdFlags)
 
-	cs := &casp.CaspServer{
+	cs = &casp.CaspServer{
 		OnMessage: func(Ws *websocket.Conn, msg []byte, mtype int) {
 			log.Printf("this is main message:%v", string(msg))
+			res, err := casp.ConvertBytesToHttpMsg(msg)
+			if err != nil {
+				go func() {
+					requestChan <- res
+				}()
+			}
 			// convert response
 		},
 		OnClose: func(Ws *websocket.Conn) {
@@ -51,6 +65,17 @@ func main() {
 			log.Printf("ServerPongHandler: server -> client %s", str)
 			return nil
 		})
+
+		go func(Conn *websocket.Conn) {
+			for {
+				select {
+				case req := <-requestChan:
+					Conn.WriteMessage(websocket.TextMessage, req.ToBytes())
+				}
+			}
+		}(Ws)
+
+		return
 
 		// send a task of httpRequest to casp client
 		req := casp.HttpMsg{
@@ -73,8 +98,8 @@ func main() {
 
 	// 注册后，复用该连接
 	http.HandleFunc("/ws", cs.ServeWebsocket)
-	//http.HandleFunc("/", ServerForHome)
-	//http.HandleFunc("/s", ForwardingToClient)
+	http.HandleFunc("/", ServerForHome)
+	http.HandleFunc("/a", ActionToClient)
 
 	log.Printf("websocket server will start at :%v", port)
 
@@ -82,4 +107,30 @@ func main() {
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
+}
+
+func ServerForHome(w http.ResponseWriter, req *http.Request) {
+	//casp.GetList()
+}
+
+func ActionToClient(res http.ResponseWriter, req *http.Request) {
+	// q= `{"Method":"GET","Uri":"http://www.baidu.com/hello"}`
+	q := req.URL.Query().Get("q")
+	sreq := &casp.HttpMsg{}
+	err := json.Unmarshal([]byte(q), &sreq.MsgBody)
+	if err != nil {
+		log.Printf("unmarshal %s error:%v", q, err)
+		res.Write([]byte(fmt.Sprintf("unmarshal %s error:%v", q, err)))
+		return
+	}
+
+	//n := req.URL.Query().Get("n")
+
+	requestChan <- sreq
+
+	sres := <-responseChan
+
+	//err := cs.RequestFromClient(n, sreq)
+	log.Printf("the res from action:%v", sres)
+	res.Write(sres.ToBytes())
 }
