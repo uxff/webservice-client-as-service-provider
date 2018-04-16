@@ -15,7 +15,7 @@ type SimpleRequest struct {
 	Method string   `json:"Method"`
 	Header []string `json:"Header"`
 	Body   string   `json:"Body"`
-	Err    error    `json:"Body"`
+	Err    error    `json:"Err"`
 }
 
 type SimpleResponse struct {

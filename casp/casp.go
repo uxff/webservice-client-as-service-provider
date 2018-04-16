@@ -155,6 +155,10 @@ func (cs *CaspServer) InitOnce() {
 	cs.inited = true
 }
 
+func (cs *CaspServer) GetNodes() map[string]*WsClientNode {
+	return cs.nodes
+}
+
 type CaspClient struct {
 	Conn         *websocket.Conn
 	Url          string
