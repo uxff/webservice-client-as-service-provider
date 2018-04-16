@@ -47,17 +47,23 @@ func (this *ForwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		break
 	}
 
-	line := fmt.Sprintf("%s %s %s\r\n", r.Method, r.RequestURI, r.Proto)
-	log.Printf("i have recv a request:%v", line)
+	//line := fmt.Sprintf("%s %s %s\r\n", r.Method, r.RequestURI, r.Proto)
+
+	q := r.URL.Query()
+	targetUrl := q.Get("url")
+
+	log.Printf("recv a request from normal client: line=[%v], casp client (%v) will serve", r.RequestURI, n.ServiceName)
+
+	n.RequestTimes++
 
 	var err error
 
-	_, err = n.Conn.Write([]byte(line))
+	_, err = n.Conn.Write([]byte(targetUrl))
 	if err != nil {
 		w.Write([]byte(fmt.Sprintf("Write line to casp conn error:%v", err)))
 	}
 
-	err = r.Header.Write((n.Conn).(io.WriteCloser))
+	//err = r.Header.Write(n.Conn)
 
 	if err != nil {
 		w.Write([]byte(fmt.Sprintf("Write head to casp conn error:%v", err)))
@@ -70,10 +76,44 @@ func (this *ForwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		}
 	*/
 
-	_, err = io.Copy(w, n.Conn)
-	if err != nil {
-		w.Write([]byte(fmt.Sprintf("Write copy error:%v", err)))
-	}
+	//_, err = io.Copy(w, n.Conn)
+	go func() {
+		for {
+			buf := make([]byte, 4096)
+			wn, err := io.CopyBuffer(w, n.Conn, buf)
+			log.Printf("recv(%d) from casp server and transfer to local server: %v, writen=%d err=%v", len(buf), string(buf[:10]), wn, err)
+		}
+		return
+
+		errTimes := 0
+		for {
+
+			if errTimes > 10 {
+				break
+			}
+
+			buf := make([]byte, 4096)
+			//io.Copy(localServer, caspServer)
+			n, err := n.Conn.Read(buf)
+
+			if err != nil {
+				log.Printf("read from casp client error: n=%d, err=%v", n, err)
+				errTimes++
+				continue
+			}
+
+			log.Printf("read success from casp client: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+			n, err = w.Write(buf)
+			if err != nil {
+				log.Printf("write to local client error: n=%d, err=%v", n, err)
+				errTimes++
+				continue
+			}
+			log.Printf("write success to local client: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+		}
+	}()
 
 }
 
@@ -88,7 +128,7 @@ func init() {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
 	go ServeRegister()
 
@@ -96,6 +136,7 @@ func main() {
 	http.HandleFunc("/_home", ServerForHome)
 	//http.DefaultTransport.RoundTrip()
 	http.Handle("/", &ForwardingHandler{})
+	http.Handle("/q", &ForwardingHandler{})
 
 	log.Printf("server will start at :%v", port)
 
@@ -120,6 +161,7 @@ func ServeRegister() {
 		go func(client net.Conn) {
 			//defer client.Close()
 
+			// 首次，读取casp client请求的注册名 应该是servicename=xxxx
 			var b = make([]byte, 4096)
 			n, err := client.Read(b)
 			if err != nil {
@@ -135,7 +177,7 @@ func ServeRegister() {
 			serviceName := q.Get("servicename")
 
 			if len(serviceName) <= 0 {
-				log.Printf("get service name from client failed")
+				log.Printf("get service name from client failed, b=%v", string(b[:100]))
 				return
 			}
 
@@ -147,7 +189,7 @@ func ServeRegister() {
 				Conn:         client,
 			}
 
-			log.Printf("a service registered 2: %v %v", client.RemoteAddr().String(), serviceName)
+			log.Printf("a casp service registered 2: %v %v curl http://127.0.0.1:%v/", client.RemoteAddr().String(), serviceName, port)
 
 			nodes[serviceName] = node
 

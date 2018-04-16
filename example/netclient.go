@@ -56,7 +56,7 @@ func Reg(registerCenter string) error {
 		return err
 	}
 
-	registerMsg := "servicename=netclient\n"
+	registerMsg := "servicename=netclient"
 	conn.Write([]byte(registerMsg))
 
 	wg := &sync.WaitGroup{}
@@ -66,7 +66,8 @@ func Reg(registerCenter string) error {
 
 		conn.SetReadDeadline(time.Now().Add(time.Hour * 1000))
 
-		handleClientRequest(conn)
+		//handleClientRequest(conn)
+		handleBasicQueryRequest(conn)
 
 		wg.Done()
 	}(conn)
@@ -76,16 +77,16 @@ func Reg(registerCenter string) error {
 	return nil
 }
 
-func handleClientRequest(client net.Conn) {
-	if client == nil {
+func handleClientRequest(caspServer net.Conn) {
+	if caspServer == nil {
 		return
 	}
-	defer client.Close()
-	log.Printf("waiting for request:%v", client.RemoteAddr().String())
+	//defer caspServer.Close()
+	log.Printf("waiting for request:%v", caspServer.RemoteAddr().String())
 
 	/*
 		var b [1024]byte
-		n, err := client.Read(b[:])
+		n, err := caspServer.Read(b[:])
 		if err != nil {
 			log.Println(err)
 			return
@@ -102,7 +103,7 @@ func handleClientRequest(client net.Conn) {
 	address := fmt.Sprintf("127.0.0.1:%d", port)
 
 	// 向本地http服务拨号
-	server, err := net.Dial("tcp", address)
+	localServer, err := net.Dial("tcp", address)
 	if err != nil {
 		log.Println(err)
 		return
@@ -110,9 +111,9 @@ func handleClientRequest(client net.Conn) {
 
 	/*
 		if method == "CONNECT" {
-			fmt.Fprint(client, "HTTP/1.1 200 Connection established\r\n")
+			fmt.Fprint(caspServer, "HTTP/1.1 200 Connection established\r\n")
 		} else {
-			server.Write(b[:n])
+			localServer.Write(b[:n])
 		}
 	*/
 
@@ -120,23 +121,116 @@ func handleClientRequest(client net.Conn) {
 	//进行转发
 	wg.Add(1)
 	go func() {
-		//io.Copy(server, client)
-		buf := make([]byte, 4096)
-		io.CopyBuffer(server, client, buf)
-		log.Printf("recv(%d) from casp server and transfer to local server: %v", len(buf), string(buf[:10]))
+
+		errTimes := 0
+		for {
+
+			if errTimes > 10 {
+				break
+			}
+
+			//io.Copy(localServer, caspServer)
+			buf := make([]byte, 4096)
+			n, err := caspServer.Read(buf)
+
+			if err != nil {
+				log.Printf("read from casp server error: n=%d, err=%v", n, err)
+				errTimes++
+				continue
+			}
+
+			log.Printf("read success from casp server: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+			n, err = localServer.Write(buf)
+			if err != nil {
+				log.Printf("write to local server error: n=%d, err=%v", n, err)
+				errTimes++
+				continue
+			}
+			log.Printf("write success to local server: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+			//io.CopyBuffer(localServer, caspServer, buf)
+			//log.Printf("recv(%d) from casp server and transfer to local server: %v", len(buf), string(buf[:10]))
+		}
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		//io.Copy(client, server)
-		buf := make([]byte, 4096)
-		io.CopyBuffer(client, server, buf)
-		log.Printf("send(%d) local server res to casp server: %v", len(buf), string(buf[:10]))
+		errTimes := 0
+		for {
+
+			if errTimes > 10 {
+				break
+			}
+
+			//io.Copy(localServer, caspServer)
+			buf := make([]byte, 4096)
+			n, err := localServer.Read(buf)
+
+			if err != nil {
+				log.Printf("read from local server error: n=%d, err=%v", n, err)
+				errTimes++
+				continue
+			}
+
+			log.Printf("read success from local server: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+			n, err = caspServer.Write(buf)
+			if err != nil {
+				log.Printf("write to casp server error: n=%d, err=%v", n, err)
+				errTimes++
+				continue
+			}
+			log.Printf("write success to casp server: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+			//io.CopyBuffer(localServer, caspServer, buf)
+			//log.Printf("recv(%d) from casp server and transfer to local server: %v", len(buf), string(buf[:10]))
+		}
 		wg.Done()
 	}()
 
 	wg.Wait()
+	if false {
+		io.Copy(caspServer, localServer)
+		io.Copy(localServer, caspServer)
+	}
+}
+
+func handleBasicQueryRequest(caspServer net.Conn) {
+	errTimes := 0
+	for {
+
+		if errTimes > 10 {
+			break
+		}
+
+		//io.Copy(localServer, caspServer)
+		buf := make([]byte, 4096)
+		n, err := caspServer.Read(buf)
+
+		if err != nil {
+			log.Printf("read from casp server error: n=%d, err=%v", n, err)
+			errTimes++
+			continue
+		}
+
+		log.Printf("read success from casp server: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+		r, err := http.Get(string(buf))
+		if err != nil {
+			caspServer.Write([]byte(fmt.Sprintf("error when get [%v]:%v", string(buf), err)))
+			//errTimes++
+			continue
+		}
+
+		io.Copy(caspServer, r.Body)
+
+		log.Printf("write success to local server: n=%v len=%v buf=%v", n, len(buf), string(buf[:10]))
+
+		//io.CopyBuffer(localServer, caspServer, buf)
+		//log.Printf("recv(%d) from casp server and transfer to local server: %v", len(buf), string(buf[:10]))
+	}
 }
 
 // 静态文件处理
