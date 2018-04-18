@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -40,12 +41,10 @@ func main() {
 	cs = &casp.CaspServer{
 		OnMessage: func(Ws *websocket.Conn, msg []byte, mtype int) {
 			log.Printf("this is main message:%v", string(msg))
-			res, err := casp.ConvertBytesToHttpMsg(msg)
-			if err != nil {
-				go func() {
-					requestChan <- res
-				}()
-			}
+			res, _ := casp.ConvertBytesToHttpMsg(msg)
+			go func() {
+				responseChan <- res
+			}()
 			// convert response
 		},
 		OnClose: func(Ws *websocket.Conn) {
@@ -115,9 +114,14 @@ func ServerForHome(w http.ResponseWriter, req *http.Request) {
 
 func ActionToClient(res http.ResponseWriter, req *http.Request) {
 	// q= `{"Method":"GET","Uri":"http://www.baidu.com/hello"}`
-	q := req.URL.Query().Get("q")
-	sreq := &casp.HttpMsg{}
-	err := json.Unmarshal([]byte(q), &sreq.MsgBody)
+	//q := req.URL.Query().Get("q")
+	q, _ := ioutil.ReadAll(req.Body)
+	sreq := &casp.HttpMsg{
+		MsgId:   fmt.Sprintf("%d", time.Now().UnixNano()),
+		MsgType: casp.MSG_TYPE_HTTP_REQ,
+		MsgBody: casp.SimpleRequest{},
+	}
+	err := json.Unmarshal(q, &sreq.MsgBody)
 	if err != nil {
 		log.Printf("unmarshal %s error:%v", q, err)
 		res.Write([]byte(fmt.Sprintf("unmarshal %s error:%v", q, err)))
