@@ -79,13 +79,16 @@ func (cs *CaspServer) ServeWebsocket(w http.ResponseWriter, req *http.Request) {
 		}(conn)
 	}
 
-	/*
-		conn.SetPingHandler(func(msg string) error {
-			conn.SetReadDeadline(time.Now().Add(1000 * time.Hour))
-			log.Printf("this ping handler.\n")
-			return nil
-		})
-	*/
+	conn.SetPingHandler(func(msg string) error {
+		conn.SetReadDeadline(time.Now().Add(1000 * time.Hour))
+		//log.Printf("this ping handler.\n")
+		node.LastPing = time.Now()
+		return nil
+	})
+	conn.SetPongHandler(func(msg string) error {
+		node.LastPing = time.Now()
+		return nil
+	})
 
 	//conn.SetCloseHandler()
 
