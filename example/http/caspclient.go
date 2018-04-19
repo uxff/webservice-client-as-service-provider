@@ -94,8 +94,11 @@ func main() {
 		if failedTimes > maxFailedTimes {
 			return
 		}
+
+		time.Sleep(3 * time.Second)
 		if err := cc.Open(); err != nil {
-			log.Fatal("connect %s error:%v", registerCenter, err)
+			log.Printf("connect %s error:%v", registerCenter, err)
+			return
 		}
 	}
 
