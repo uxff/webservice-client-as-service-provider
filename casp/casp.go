@@ -174,7 +174,8 @@ type CaspClient struct {
 func (cc *CaspClient) Open() error {
 	conn, _, err := websocket.DefaultDialer.Dial(cc.Url, nil)
 	if err != nil {
-		log.Fatal("dial:", err)
+		log.Printf("dial:", err)
+		return err
 	}
 
 	cc.Conn = conn
