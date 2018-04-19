@@ -51,7 +51,7 @@ func main() {
 			log.Printf("this is main close")
 		},
 		PingInterval: time.Second * time.Duration(pingInterval),
-		TimeOut:      time.Second * 10,
+		TimeOut:      time.Second * 30,
 	}
 
 	cs.OnOpen = func(Ws *websocket.Conn, r *http.Request) {
@@ -127,8 +127,6 @@ func ActionToClient(res http.ResponseWriter, req *http.Request) {
 		res.Write([]byte(fmt.Sprintf("unmarshal %s error:%v", q, err)))
 		return
 	}
-
-	//n := req.URL.Query().Get("n")
 
 	requestChan <- sreq
 
