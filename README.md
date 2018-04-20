@@ -12,22 +12,25 @@ that means, you will make a data service via server host, but data is located on
 
 # Supported Protocal or not
 - HTTP/1.1
-- not HTTPS
+- HTTPS
 - not HTTP/2
 - not WebSocket
+- not Proxy
+
 
 
 # Server side
-start server and listen;
+start http/websocket server and listen;
 API of register a CASP service for CASP client;
+API of request a service forwarding to CASP client;
 
 
 # Client side
-Register service to CASP server;
+Connect to CASP server via websocket and register service to CASP server;
 start a local http server as service;
 
 # Optional plan
 - Base on WebSocket
 - Base on Tcp protocol
 - Base on gRPC / both side stream
-
+- Base on p2p protocal
