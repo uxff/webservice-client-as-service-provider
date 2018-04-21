@@ -22,7 +22,7 @@ var pingInterval int = 3
 func init() {
 	flag.IntVar(&port, "p", 8082, "本地服务器端口")
 	flag.StringVar(&dir, "dir", "./", "dir of statis server")
-	flag.StringVar(&sid, "sid", sid, "param sid")
+	flag.StringVar(&sid, "sid", sid, "param serial id")
 	flag.StringVar(&registerCenter, "reg", registerCenter, "register center")
 	flag.IntVar(&pingInterval, "i", pingInterval, "ping interval, num of seconds")
 	flag.Parse()

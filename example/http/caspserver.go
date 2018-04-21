@@ -109,6 +109,17 @@ func main() {
 }
 
 func ServerForHome(w http.ResponseWriter, req *http.Request) {
+	nodes := cs.GetNodes()
+
+	nodesStr := make([]string, 0)
+
+	for _, node := range nodes {
+		nodesStr = append(nodesStr, node.ClientIp)
+	}
+
+	buf, _ := json.Marshal(nodesStr)
+
+	w.Write(buf)
 	//casp.GetList()
 }
 

@@ -45,8 +45,6 @@ func (cs *CaspServer) ServeWebsocket(w http.ResponseWriter, req *http.Request) {
 		log.Fatal("ServeWebsocket error:%v", err)
 	}
 
-	//q := req.URL.Query()
-
 	node := &WsClientNode{
 		ClientIp:     req.RemoteAddr,
 		Created:      time.Now(),

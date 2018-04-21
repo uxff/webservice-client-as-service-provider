@@ -35,6 +35,9 @@ const (
 	MSG_TYPE_HTTP_RES = 2
 )
 
+type Option struct {
+}
+
 var lastErrors []error
 
 func (h *HttpMsg) ToBytes() []byte {
