@@ -42,14 +42,6 @@ func main() {
 		Url: registerCenter,
 		OnOpen: func(ws *websocket.Conn) {
 			log.Printf("in main open a client->server")
-			ws.SetPingHandler(func(str string) error {
-				log.Printf("ClientPingHandler: %v", str)
-				return nil
-			})
-			ws.SetPongHandler(func(str string) error {
-				log.Printf("ClientPongHandler: %v", str)
-				return nil
-			})
 		},
 		OnMessage: func(ws *websocket.Conn, msg []byte, mtype int) {
 			log.Printf("in main get msg:%v", string(msg))
@@ -98,12 +90,24 @@ func main() {
 		time.Sleep(3 * time.Second)
 		if err := cc.Open(); err != nil {
 			log.Printf("connect %s error:%v", registerCenter, err)
-			return
+			//return
 		}
 	}
 
-	if err := cc.Open(); err != nil {
-		log.Fatal("connect %s error:%v", registerCenter, err)
+	for {
+
+		if err := cc.Open(); err != nil {
+			log.Printf("connect %s error:%v", registerCenter, err)
+			goto RETRY
+		}
+		if err := cc.Serve(); err != nil {
+			log.Printf("Serve error:%v", err)
+			goto RETRY
+		}
+
+	RETRY:
+		time.Sleep(time.Second * 5)
+
 	}
 
 	select {}

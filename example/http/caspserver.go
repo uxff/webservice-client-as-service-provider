@@ -38,6 +38,7 @@ func init() {
 	responseChan = make(chan *casp.HttpMsg, 10)
 
 	//nodes = make(map[string]*ServiceNode, 0)
+	go ResponseDispatch()
 }
 
 var requestMap = make(map[string]*casp.HttpMsg, 0)
@@ -63,6 +64,7 @@ func ResponseDispatch() {
 	for {
 		select {
 		case res := <-responseChan:
+			log.Printf("dispatch a msg:%v", res.MsgId)
 			if req, ok := requestMap[res.MsgId]; ok {
 				req.ResChan <- res
 				DelReq(req)
@@ -79,8 +81,8 @@ func main() {
 
 	cs = &casp.CaspServer{
 		OnMessage: func(Ws *websocket.Conn, msg []byte, mtype int) {
-			log.Printf("this is main message:%v", string(msg))
 			res, _ := casp.ConvertBytesToHttpMsg(msg)
+			log.Printf("this is main message:%v", res.MsgId)
 			go func() {
 				// unable to implement multi-request
 				responseChan <- res
@@ -95,14 +97,6 @@ func main() {
 
 	cs.OnOpen = func(Ws *websocket.Conn, r *http.Request) {
 		log.Printf("this is main open")
-		Ws.SetPingHandler(func(str string) error {
-			log.Printf("ServerPingHandler: from client %s", str)
-			return nil
-		})
-		Ws.SetPongHandler(func(str string) error {
-			log.Printf("ServerPongHandler: server -> client %s", str)
-			return nil
-		})
 
 		go func(Conn *websocket.Conn) {
 			for {
@@ -162,11 +156,18 @@ func ActionToClient(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	AddReq(sreq)
 	requestChan <- sreq
 
-	sres := <-responseChan
+	sres := <-sreq.ResChan
+	//sres := <-responseChan
 
 	//err := cs.RequestFromClient(n, sreq)
-	log.Printf("the res from action:%v", sres)
-	res.Write(sres.ToBytes())
+	log.Printf("the res from action:%v", sres.MsgId)
+	resBytes := sres.ToBytes()
+	//res.WriteHeader()
+	res.Header().Add("Content-Length", fmt.Sprintf("%d", len(resBytes)))
+	res.Write(resBytes)
+
+	log.Printf("a res over")
 }

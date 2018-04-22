@@ -67,7 +67,7 @@ func (cs *CaspServer) ServeWebsocket(w http.ResponseWriter, req *http.Request) {
 			for {
 				// will leak when conn closed
 				time.Sleep(cs.PingInterval)
-				log.Printf("server write a ping.")
+				//log.Printf("server write a ping.")
 				err := conn.WriteMessage(websocket.PingMessage, nil)
 				if err != nil {
 					log.Printf("server write ping error:%v", err)
@@ -103,7 +103,7 @@ func (cs *CaspServer) ServeWebsocket(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			log.Printf("get a message from %v:type=%d msg=%v ", node.ClientIp, mtype, string(msg))
+			//log.Printf("get a message from %v:type=%d msg=%v ", node.ClientIp, mtype, string(msg))
 			if cs.OnMessage != nil {
 				cs.OnMessage(node.Conn, msg, mtype)
 			}
@@ -197,7 +197,7 @@ func (cc *CaspClient) Open() error {
 		go func(conn *websocket.Conn) {
 			for {
 				time.Sleep(cc.PingInterval)
-				log.Printf("client write a ping.")
+				//log.Printf("client write a ping.")
 				err := conn.WriteMessage(websocket.PingMessage, nil)
 				if err != nil {
 					log.Printf("client write ping error:%v", err)
@@ -207,26 +207,6 @@ func (cc *CaspClient) Open() error {
 		}(conn)
 	}
 
-	go func(conn *websocket.Conn) {
-
-		for {
-			mtype, msg, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("read message error:%v", err)
-				cc.Close()
-				break
-			}
-
-			log.Printf("read msg=%v mtype=%v", string(msg), mtype)
-
-			if cc.OnMessage != nil {
-				cc.OnMessage(conn, msg, mtype)
-			}
-
-		}
-
-	}(conn)
-
 	return nil
 }
 
@@ -235,6 +215,26 @@ func (cc *CaspClient) Close() {
 	if cc.OnClose != nil {
 		cc.OnClose(cc.Conn)
 	}
+}
+
+func (cc *CaspClient) Serve() error {
+	for {
+		mtype, msg, err := cc.Conn.ReadMessage()
+		if err != nil {
+			log.Printf("read message error:%v", err)
+			cc.Close()
+			return err
+		}
+
+		//log.Printf("read msg=%v mtype=%v", string(msg), mtype)
+
+		if cc.OnMessage != nil {
+			cc.OnMessage(cc.Conn, msg, mtype)
+		}
+
+	}
+
+	return nil
 }
 
 func init() {
