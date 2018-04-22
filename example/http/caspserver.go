@@ -147,6 +147,7 @@ func ActionToClient(res http.ResponseWriter, req *http.Request) {
 		MsgId:   fmt.Sprintf("%d", time.Now().UnixNano()),
 		MsgType: casp.MSG_TYPE_HTTP_REQ,
 		MsgBody: casp.SimpleRequest{},
+		ResChan: make(chan *casp.HttpMsg, 1),
 	}
 
 	err := json.Unmarshal(q, &sreq.MsgBody)
