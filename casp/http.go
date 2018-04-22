@@ -28,6 +28,7 @@ type HttpMsg struct {
 	MsgId   string        `json:"MsgId"`
 	MsgType int           `json:"MsgType"`
 	MsgBody SimpleRequest `json:"MsgBody"`
+	ResChan chan *HttpMsg `json:"-"`
 }
 
 const (
