@@ -64,8 +64,8 @@ func ResponseDispatch() {
 	for {
 		select {
 		case res := <-responseChan:
-			log.Printf("dispatch a msg:%v", res.MsgId)
 			if req, ok := requestMap[res.MsgId]; ok {
+				log.Printf("dispatch a response msg:%v", res.MsgId)
 				req.ResChan <- res
 				DelReq(req)
 			} else {
@@ -82,7 +82,7 @@ func main() {
 	cs = &casp.CaspServer{
 		OnMessage: func(Ws *websocket.Conn, msg []byte, mtype int) {
 			res, _ := casp.ConvertBytesToHttpMsg(msg)
-			log.Printf("this is main message:%v", res.MsgId)
+			log.Printf("this is main message from CaspClient:%v", res.MsgId)
 			go func() {
 				// unable to implement multi-request
 				responseChan <- res
@@ -158,7 +158,10 @@ func ActionToClient(res http.ResponseWriter, req *http.Request) {
 	}
 
 	AddReq(sreq)
+	log.Printf("will write into requestChan:%v", sreq.MsgId)
 	requestChan <- sreq
+
+	log.Printf("will read from sreq.ResChan:%v", sreq.MsgId)
 
 	sres := <-sreq.ResChan
 	//sres := <-responseChan

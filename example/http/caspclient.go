@@ -17,6 +17,7 @@ var staticHandler http.Handler
 var registerCenter = "ws://127.0.0.1:8081/ws"
 var sid string = "19283911"
 var pingInterval int = 3
+var delay = 0
 
 // 初始化参数
 func init() {
@@ -25,6 +26,7 @@ func init() {
 	flag.StringVar(&sid, "sid", sid, "param serial id")
 	flag.StringVar(&registerCenter, "reg", registerCenter, "register center")
 	flag.IntVar(&pingInterval, "i", pingInterval, "ping interval, num of seconds")
+	flag.IntVar(&delay, "delay", delay, "delay request")
 	flag.Parse()
 
 	dir = path.Dir(dir)
@@ -55,6 +57,12 @@ func main() {
 				log.Printf("a got a task of http req")
 				req := msgReq.MsgBody
 				log.Printf("task is:%s %s", req.Method, req.Uri)
+
+				if delay > 0 {
+
+					time.Sleep(time.Second * time.Duration(delay))
+				}
+
 				res := req.Do(time.Second * 10)
 				if res.Err != nil {
 				}

@@ -69,7 +69,7 @@ func ConvertHttpResToSimpleResponse(httpRes *http.Response) (*SimpleRequest, err
 	res.Header = make([]string, 0)
 
 	for hk, hv := range httpRes.Header {
-		res.Header = append(res.Header, fmt.Sprintf("%s: %s"), hk, strings.Join(hv, ","))
+		res.Header = append(res.Header, fmt.Sprintf("%s: %s", hk, strings.Join(hv, ",")))
 	}
 
 	return res, err
