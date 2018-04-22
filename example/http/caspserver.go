@@ -8,11 +8,17 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	websocket "github.com/gorilla/websocket"
 	"github.com/uxff/webservice-client-as-service-provider/casp"
 )
+
+type CaspRequest struct {
+	req *casp.HttpMsg
+	res *casp.HttpMsg
+}
 
 var port int
 var pingInterval int
@@ -34,6 +40,39 @@ func init() {
 	//nodes = make(map[string]*ServiceNode, 0)
 }
 
+var requestMap = make(map[string]*casp.HttpMsg, 0)
+
+func AddReq(req *casp.HttpMsg) {
+	mutex := &sync.Mutex{}
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	requestMap[req.MsgId] = req
+}
+
+func DelReq(req *casp.HttpMsg) {
+	mutex := &sync.Mutex{}
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	delete(requestMap, req.MsgId)
+
+}
+
+func ResponseDispatch() {
+	for {
+		select {
+		case res := <-responseChan:
+			if req, ok := requestMap[res.MsgId]; ok {
+				req.ResChan <- res
+				DelReq(req)
+			} else {
+				log.Printf("nobody own this res:%s", res.MsgId)
+			}
+		}
+	}
+}
+
 func main() {
 
 	log.SetFlags(log.LstdFlags)
@@ -43,9 +82,9 @@ func main() {
 			log.Printf("this is main message:%v", string(msg))
 			res, _ := casp.ConvertBytesToHttpMsg(msg)
 			go func() {
+				// unable to implement multi-request
 				responseChan <- res
 			}()
-			// convert response
 		},
 		OnClose: func(Ws *websocket.Conn) {
 			log.Printf("this is main close")
@@ -74,23 +113,6 @@ func main() {
 			}
 		}(Ws)
 
-		return
-
-		// send a task of httpRequest to casp client
-		req := casp.HttpMsg{
-			MsgBody: casp.SimpleRequest{
-				Method: "GET",
-				Uri:    "http://www.baidu.com",
-			},
-			MsgId:   fmt.Sprintf("%d", time.Now().Unix()),
-			MsgType: casp.MSG_TYPE_HTTP_REQ,
-		}
-
-		err := Ws.WriteMessage(websocket.TextMessage, req.ToBytes())
-		if err != nil {
-			log.Printf("write message error:%v", err)
-		}
-		log.Printf("already send httpMsg to client:%v", r.RemoteAddr)
 	}
 
 	cs.InitOnce()
@@ -132,6 +154,7 @@ func ActionToClient(res http.ResponseWriter, req *http.Request) {
 		MsgType: casp.MSG_TYPE_HTTP_REQ,
 		MsgBody: casp.SimpleRequest{},
 	}
+
 	err := json.Unmarshal(q, &sreq.MsgBody)
 	if err != nil {
 		log.Printf("unmarshal %s error:%v", q, err)
