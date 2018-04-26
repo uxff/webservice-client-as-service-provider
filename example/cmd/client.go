@@ -67,11 +67,13 @@ func main() {
 
 				args := strings.Split(msgReq.MsgBody.Body, " ")
 
+				// todo: with bug, first time it failed, secondly ok
 				res, err := exec.Command(args[0], args[1:]...).Output()
 				//res := req.Do(time.Second * 10)
 				if err != nil {
+					log.Printf("exec commend:%v error:%v", args, err)
 				}
-				log.Printf("we got task res:%v", res)
+				log.Printf("we got task res:%s", res)
 
 				msgRes := &casp.HttpMsg{
 					MsgId:   msgReq.MsgId,
