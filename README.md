@@ -34,3 +34,9 @@ start a local http server as service;
 - Base on Tcp protocol
 - Base on gRPC / both side stream
 - Base on p2p protocal
+
+# Instead project
+- FRP
+- ngrok
+
+
