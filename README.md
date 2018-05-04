@@ -36,7 +36,7 @@ start a local http server as service;
 - Base on p2p protocal
 
 # Instead project
-- FRP
-- ngrok
+- [FRP](https://github.com/fatedier/frp)
+- [ngrok](https://ngrok.com/)
 
 
