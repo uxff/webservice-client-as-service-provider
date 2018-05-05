@@ -38,5 +38,5 @@ start a local http server as service;
 # Instead project
 - [FRP](https://github.com/fatedier/frp)
 - [ngrok](https://ngrok.com/)
-
+- [ngrok.cc](https://ngrok.cc)
 
